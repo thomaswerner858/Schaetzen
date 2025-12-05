@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGameEngine } from './services/gameEngine';
 import { GamePhase, GameMode } from './types';
-import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle, XCircle, LogIn, Trash2, PenTool, CheckCircle, BrainCircuit, Globe } from 'lucide-react';
+import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle, XCircle, LogIn, Trash2, PenTool, CheckCircle, BrainCircuit, Globe, Lock } from 'lucide-react';
 
 const GameScreen = () => {
   const { state, myPlayerId, joinGame, startGame, cancelGame, hardReset, submitGuess, nextRound, restartGame, setGameMode, submitCustomQuestion } = useGameEngine();
@@ -107,8 +107,15 @@ const GameScreen = () => {
 
   // --- VIEW: LOBBY ---
   if (state.phase === GamePhase.LOBBY) {
-    const canStart = state.players.length >= 2;
+    const playerCount = state.players.length;
+    // Condition to start game depends on mode
+    const canStart = state.mode === GameMode.PREDEFINED 
+      ? playerCount >= 2 
+      : playerCount >= 3;
     
+    // Condition to enable custom mode selection
+    const canSelectCustom = playerCount >= 3;
+
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950">
         <div className="mb-10 text-center animate-float">
@@ -125,7 +132,7 @@ const GameScreen = () => {
               Lobby
             </h2>
             <span className="text-xs font-mono bg-slate-900 px-2 py-1 rounded text-slate-400">
-              {state.players.length} Spieler bereit
+              {playerCount} Spieler bereit
             </span>
           </div>
           
@@ -150,18 +157,27 @@ const GameScreen = () => {
                        <Globe className="w-5 h-5" />
                        Vordefiniert
                      </button>
+                     
                      <button 
-                       onClick={() => setGameMode(GameMode.CUSTOM)}
-                       className={`flex-1 py-3 px-2 rounded-lg text-sm font-bold flex flex-col items-center gap-1 transition-all ${state.mode === GameMode.CUSTOM ? 'bg-indigo-600 text-white ring-2 ring-indigo-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                       onClick={() => canSelectCustom && setGameMode(GameMode.CUSTOM)}
+                       disabled={!canSelectCustom}
+                       className={`flex-1 py-3 px-2 rounded-lg text-sm font-bold flex flex-col items-center gap-1 transition-all relative overflow-hidden
+                         ${state.mode === GameMode.CUSTOM 
+                            ? 'bg-indigo-600 text-white ring-2 ring-indigo-400' 
+                            : canSelectCustom 
+                                ? 'bg-slate-800 text-slate-400 hover:bg-slate-700' 
+                                : 'bg-slate-800/50 text-slate-600 cursor-not-allowed'}
+                       `}
                      >
-                       <PenTool className="w-5 h-5" />
+                       {canSelectCustom ? <PenTool className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
                        Benutzerdefiniert
+                       {!canSelectCustom && <span className="text-[10px] mt-1 font-normal opacity-80">(Min. 3 Spieler)</span>}
                      </button>
                  </div>
                  <p className="text-xs text-slate-400 mt-3 text-center min-h-[2.5em]">
                     {state.mode === GameMode.PREDEFINED 
-                     ? "Fragen aus dem Katalog (Airtable)." 
-                     : "Spieler stellen sich abwechselnd Fragen. Der Verlierer stellt die nächste Frage."}
+                     ? "Fragen aus dem Katalog (Airtable). Jeder gegen Jeden." 
+                     : "Reihum stellt ein Spieler eine Frage. Der Rest rät."}
                  </p>
               </div>
           ) : (
@@ -180,11 +196,17 @@ const GameScreen = () => {
               w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all duration-300
               ${canStart 
                 ? 'bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 transform hover:-translate-y-1' 
-                : 'bg-slate-700 text-slate-400 cursor-not-allowed grayscale'}
+                : 'bg-slate-700 text-white cursor-not-allowed'}
             `}
           >
             {canStart ? <Play className="w-5 h-5 fill-current" /> : <Clock className="w-5 h-5" />}
-            {canStart ? 'Spiel starten' : 'Warte auf Mitspieler (min. 2)...'}
+            {canStart 
+               ? 'Spiel starten' 
+               : (state.mode === GameMode.CUSTOM 
+                   ? 'Benötigt min. 3 Spieler' 
+                   : 'Warte auf Mitspieler (min. 2)...'
+                 )
+            }
           </button>
           
           {!canStart && (
@@ -558,32 +580,35 @@ const GameScreen = () => {
                  // In Custom mode, visually distinguish the questioner
                  if (state.mode === GameMode.CUSTOM && p.id === state.activeQuestionerId) {
                     return (
-                        <div key={p.id} className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-                            <PenTool className="w-3 h-3" />
-                            <span>{p.name} (Stellt Frage)</span>
+                        <div key={p.id} className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-indigo-900/50 border border-indigo-500 rounded-full">
+                           <PenTool className="w-3 h-3 text-indigo-400" />
+                           <span className="font-bold text-sm text-indigo-200">{p.name} (Stellt Frage)</span>
                         </div>
-                    )
+                    );
                  }
                  
                  return (
-                 <div key={p.id} className={`
-                    flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors
-                    ${p.hasGuessed ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}
-                 `}>
-                    <div className={`w-2 h-2 rounded-full ${p.hasGuessed ? 'bg-green-500' : 'bg-slate-600'}`} />
-                    <span>{p.name}</span>
-                    <span className="bg-slate-950/50 px-1.5 rounded text-xs ml-1">{p.score}</span>
-                 </div>
-               )})}
+                    <div key={p.id} className={`
+                        flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full border transition-all
+                        ${p.hasGuessed 
+                           ? 'bg-green-900/30 border-green-500/50' 
+                           : 'bg-slate-800 border-slate-700'
+                        }
+                    `}>
+                        <div className={`w-2 h-2 rounded-full ${p.hasGuessed ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`} />
+                        <span className={`font-bold text-sm ${p.hasGuessed ? 'text-green-100' : 'text-slate-400'}`}>
+                           {p.name} {p.id === myPlayerId && '(Du)'}
+                        </span>
+                        <div className="w-px h-3 bg-slate-700 mx-1"></div>
+                        <span className="text-xs font-mono text-slate-500">{p.score}</span>
+                    </div>
+                 );
+               })}
             </div>
          </div>
       )}
     </div>
   );
-}
+};
 
-export default function App() {
-  return (
-    <GameScreen />
-  );
-}
+export default GameScreen;
