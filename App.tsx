@@ -236,14 +236,11 @@ const GameScreen = () => {
       )}
 
       {/* Header / Scoreboard */}
-      <div className="w-full max-w-4xl flex justify-between items-start mb-8 mt-8 md:mt-0">
-        <div>
-          <h2 className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Frage {state.currentQuestionIndex + 1} / {state.questions.length}</h2>
-          <div className="flex gap-1">
-             {state.questions.map((_, i) => (
-               <div key={i} className={`h-1 w-8 rounded-full ${i <= state.currentQuestionIndex ? 'bg-indigo-500' : 'bg-slate-700'}`} />
-             ))}
-          </div>
+      <div className="w-full max-w-4xl flex justify-between items-center mb-8 mt-8 md:mt-0">
+        <div className="bg-slate-800/50 px-5 py-2 rounded-full border border-slate-700/50 backdrop-blur-sm">
+          <h2 className="text-slate-300 text-sm font-bold uppercase tracking-wider">
+            Frage <span className="text-indigo-400 text-base">{state.currentQuestionIndex + 1}</span> <span className="text-slate-500">/</span> {state.questions.length}
+          </h2>
         </div>
         
         {/* Timer */}
@@ -252,7 +249,6 @@ const GameScreen = () => {
              <Clock className="w-6 h-6" />
              {isReveal ? '00' : state.timeRemaining.toString().padStart(2, '0')}
            </div>
-           <p className="text-xs text-slate-500">Sekunden</p>
         </div>
       </div>
 
