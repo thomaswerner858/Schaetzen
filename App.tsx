@@ -580,9 +580,9 @@ const GameScreen = () => {
                  // In Custom mode, visually distinguish the questioner
                  if (state.mode === GameMode.CUSTOM && p.id === state.activeQuestionerId) {
                     return (
-                        <div key={p.id} className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-indigo-900/50 border border-indigo-500 rounded-full">
-                           <PenTool className="w-3 h-3 text-indigo-400" />
-                           <span className="font-bold text-sm text-indigo-200">{p.name} (Stellt Frage)</span>
+                        <div key={p.id} className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-green-900/30 border border-green-500/50 rounded-full">
+                           <PenTool className="w-3 h-3 text-green-400" />
+                           <span className="font-bold text-sm text-green-100">{p.name} (Stellt Frage)</span>
                         </div>
                     );
                  }
