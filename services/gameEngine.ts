@@ -228,6 +228,16 @@ export const useGameEngine = () => {
     });
   };
 
+  // NEW: Completely resets the game state and removes all players
+  const hardReset = async () => {
+    if (!db) return;
+    const gameRef = doc(db, "games", ROOM_ID);
+    if (window.confirm("Bist du sicher? Dies wirft ALLE Spieler raus und setzt alles zurück.")) {
+        await setDoc(gameRef, initialState);
+        window.location.reload();
+    }
+  };
+
   const submitGuess = async (guess: number) => {
     if (!db) return;
     const gameRef = doc(db, "games", ROOM_ID);
@@ -328,6 +338,7 @@ export const useGameEngine = () => {
     joinGame,
     startGame,
     cancelGame,
+    hardReset,
     submitGuess,
     nextRound,
     restartGame

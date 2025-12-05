@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useGameEngine } from './services/gameEngine';
 import { GamePhase, Player } from './types';
-import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle, XCircle, LogIn } from 'lucide-react';
+import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle, XCircle, LogIn, Trash2 } from 'lucide-react';
 
 const GameScreen = () => {
-  const { state, myPlayerId, joinGame, startGame, cancelGame, submitGuess, nextRound, restartGame } = useGameEngine();
+  const { state, myPlayerId, joinGame, startGame, cancelGame, hardReset, submitGuess, nextRound, restartGame } = useGameEngine();
   const [localGuess, setLocalGuess] = useState<string>('');
   const [playerName, setPlayerName] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
@@ -47,7 +47,7 @@ const GameScreen = () => {
           <p className="text-slate-400 mt-2 text-lg">Wer liegt am nächsten dran?</p>
         </div>
 
-        <div className="w-full max-w-md bg-slate-800/80 backdrop-blur-md rounded-2xl p-8 border border-slate-700 shadow-2xl">
+        <div className="w-full max-w-md bg-slate-800/80 backdrop-blur-md rounded-2xl p-8 border border-slate-700 shadow-2xl relative">
            <h2 className="text-xl font-bold text-white mb-6 text-center">Profil erstellen</h2>
            
            <div className="space-y-4">
@@ -74,6 +74,17 @@ const GameScreen = () => {
                `}
              >
                <LogIn className="w-5 h-5" /> Beitreten
+             </button>
+           </div>
+
+           {/* HARD RESET BUTTON FOR DEV/TESTING */}
+           <div className="mt-8 pt-4 border-t border-slate-700 flex justify-center">
+             <button 
+               onClick={hardReset}
+               className="text-xs text-red-500 hover:text-red-400 flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity"
+               title="Löscht alle Spieler und setzt das Spiel zurück"
+             >
+               <Trash2 className="w-3 h-3" /> Lobby komplett zurücksetzen (Dev Reset)
              </button>
            </div>
         </div>
@@ -133,6 +144,15 @@ const GameScreen = () => {
               <AlertCircle className="w-3 h-3" /> Öffnen Sie einen weiteren Tab, um zu testen.
             </p>
           )}
+
+           <div className="mt-6 pt-4 border-t border-slate-700 flex justify-center">
+             <button 
+               onClick={hardReset}
+               className="text-xs text-red-500 hover:text-red-400 flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity"
+             >
+               <Trash2 className="w-3 h-3" /> Lobby leeren (Alle kicken)
+             </button>
+           </div>
         </div>
       </div>
     );
