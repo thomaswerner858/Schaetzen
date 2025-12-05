@@ -283,6 +283,7 @@ export const useGameEngine = () => {
        const updatedPlayers = data.players.map(p => ({
           ...p,
           currentGuess: null,
+          // Set explicit 'hasGuessed: true' for the questioner to keep UI clean
           hasGuessed: (data.mode === GameMode.CUSTOM && p.id === data.activeQuestionerId) ? true : false
        }));
 
@@ -349,9 +350,15 @@ export const useGameEngine = () => {
 
        const updateData: any = { players: updatedPlayers };
 
-       // Check if ALL players have guessed (marked as true)
-       // Since the questioner starts as 'true', this simple check covers both modes correctly.
-       const allGuessed = updatedPlayers.every(p => p.hasGuessed);
+       // Check if ALL players have guessed
+       // CRITICAL FIX: If in Custom Mode, we MUST ignore the activeQuestionerId in this check.
+       // Even if their 'hasGuessed' status is technically false (sync lag), they don't block the round.
+       const allGuessed = updatedPlayers.every(p => {
+           if (data.mode === GameMode.CUSTOM && p.id === data.activeQuestionerId) {
+               return true; // Ignore the questioner, assume they are ready
+           }
+           return p.hasGuessed;
+       });
        
        if (allGuessed) {
          updateData.timeRemaining = 0;
