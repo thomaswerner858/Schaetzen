@@ -250,9 +250,9 @@ const GameScreen = () => {
         </div>
       </div>
 
-      {/* BIG TIMER DISPLAY */}
+      {/* BIG TIMER DISPLAY (DESKTOP ONLY) */}
       <div className={`
-        relative mb-8 rounded-full w-32 h-32 flex items-center justify-center border-4
+        relative mb-8 rounded-full w-32 h-32 hidden md:flex items-center justify-center border-4
         ${timerBg} ${timerBorder} transition-all duration-300
       `}>
           <div className="text-center">
@@ -300,19 +300,38 @@ const GameScreen = () => {
              </div>
           ) : (
             <div className="flex flex-col items-center gap-4 max-w-sm mx-auto">
-              <div className="relative w-full">
-                <input
-                   type="number"
-                   value={localGuess}
-                   onChange={(e) => setLocalGuess(e.target.value)}
-                   onKeyDown={(e) => e.key === 'Enter' && handleGuessSubmit()}
-                   placeholder="0"
-                   className="w-full bg-slate-700 text-white text-center text-3xl font-bold py-4 rounded-xl border-2 border-slate-600 focus:border-indigo-500 focus:ring-0 outline-none transition-all placeholder:text-slate-600"
-                   disabled={me?.hasGuessed}
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium pointer-events-none">
-                  {currentQuestion.einheit}
-                </span>
+              
+              <div className="flex items-center gap-3 w-full">
+                {/* MOBILE TIMER (VISIBLE ONLY ON MOBILE) */}
+                <div className={`
+                  md:hidden flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center border-4 shadow-lg
+                  ${timerBg} ${timerBorder}
+                `}>
+                   <span className={`text-xl font-bold font-mono ${timerColor}`}>
+                     {state.timeRemaining}
+                   </span>
+                </div>
+
+                {/* Input Field Wrapper */}
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    value={localGuess}
+                    onChange={(e) => setLocalGuess(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleGuessSubmit()}
+                    placeholder="0"
+                    className="w-full bg-slate-700 text-white text-center text-3xl font-bold py-4 rounded-xl border-2 border-slate-600 focus:border-indigo-500 focus:ring-0 outline-none transition-all placeholder:text-slate-600"
+                    disabled={me?.hasGuessed}
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium pointer-events-none hidden sm:inline">
+                    {currentQuestion.einheit}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Mobile Unit Display (Below input if screen is very small) */}
+              <div className="sm:hidden text-slate-400 font-medium text-sm -mt-2">
+                {currentQuestion.einheit}
               </div>
               
               <button
