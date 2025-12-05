@@ -220,6 +220,12 @@ const GameScreen = () => {
 
   const roundWinnerId = state.winnerId;
 
+  // Determine Timer Color
+  const timerIsCritical = state.timeRemaining < 6;
+  const timerColor = isReveal ? 'text-slate-500' : (timerIsCritical ? 'text-red-500' : 'text-indigo-400');
+  const timerBorder = isReveal ? 'border-slate-700' : (timerIsCritical ? 'border-red-500/50 animate-pulse' : 'border-indigo-500/50');
+  const timerBg = isReveal ? 'bg-slate-800' : (timerIsCritical ? 'bg-red-950/30' : 'bg-indigo-950/30');
+
   return (
     <div className="min-h-screen flex flex-col items-center p-4 md:p-8 bg-slate-900 relative">
       
@@ -227,29 +233,49 @@ const GameScreen = () => {
       {isHost && (
         <button 
           onClick={cancelGame}
-          className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold"
+          className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold z-10"
           title="Spiel für alle abbrechen und zur Lobby zurückkehren"
         >
           <XCircle className="w-4 h-4" />
-          Spiel abbrechen
+          <span className="hidden md:inline">Spiel abbrechen</span>
         </button>
       )}
 
-      {/* Header / Scoreboard */}
-      <div className="w-full max-w-4xl flex justify-between items-center mb-8 mt-8 md:mt-0">
-        <div className="bg-slate-800/50 px-5 py-2 rounded-full border border-slate-700/50 backdrop-blur-sm">
-          <h2 className="text-slate-300 text-sm font-bold uppercase tracking-wider">
-            Frage <span className="text-indigo-400 text-base">{state.currentQuestionIndex + 1}</span> <span className="text-slate-500">/</span> {state.questions.length}
+      {/* Header Info */}
+      <div className="w-full max-w-4xl flex justify-center mt-8 md:mt-4 mb-6">
+        <div className="bg-slate-800/80 px-6 py-2 rounded-full border border-slate-700 backdrop-blur-sm">
+          <h2 className="text-slate-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+            Frage <span className="bg-slate-700 px-2 py-0.5 rounded text-white">{state.currentQuestionIndex + 1}</span> von {state.questions.length}
           </h2>
         </div>
-        
-        {/* Timer */}
-        <div className="text-right">
-           <div className={`text-3xl font-mono font-bold flex items-center justify-end gap-2 ${state.timeRemaining < 5 && !isReveal ? 'text-red-500 animate-pulse' : 'text-white'}`}>
-             <Clock className="w-6 h-6" />
-             {isReveal ? '00' : state.timeRemaining.toString().padStart(2, '0')}
-           </div>
-        </div>
+      </div>
+
+      {/* BIG TIMER DISPLAY */}
+      <div className={`
+        relative mb-8 rounded-full w-32 h-32 flex items-center justify-center border-4
+        ${timerBg} ${timerBorder} transition-all duration-300
+      `}>
+          <div className="text-center">
+            <div className={`text-6xl font-mono font-bold ${timerColor}`}>
+              {isReveal ? '00' : state.timeRemaining.toString().padStart(2, '0')}
+            </div>
+            <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mt-[-5px]">Sekunden</div>
+          </div>
+          
+          {/* Decorative ring */}
+          {!isReveal && (
+             <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+               <circle cx="50" cy="50" r="46" stroke="currentColor" strokeWidth="2" fill="none" className="text-slate-800" />
+               <circle 
+                 cx="50" cy="50" r="46" 
+                 stroke="currentColor" strokeWidth="2" fill="none" 
+                 className={`${timerIsCritical ? 'text-red-500' : 'text-indigo-500'} transition-all duration-1000`}
+                 strokeDasharray="289"
+                 strokeDashoffset={289 - (289 * state.timeRemaining) / 15} // Based on 15s round duration
+                 strokeLinecap="round"
+               />
+             </svg>
+          )}
       </div>
 
       {/* Main Game Card */}
@@ -295,11 +321,11 @@ const GameScreen = () => {
                 className={`
                    w-full py-3 rounded-lg font-bold text-lg transition-all
                    ${me?.hasGuessed 
-                     ? 'bg-green-600 text-white cursor-default' 
-                     : 'bg-indigo-600 hover:bg-indigo-500 text-white'}
+                     ? 'bg-green-600 text-white cursor-default shadow-lg shadow-green-900/20' 
+                     : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20'}
                 `}
               >
-                {me?.hasGuessed ? 'Gesendet!' : 'Absenden'}
+                {me?.hasGuessed ? 'Warten auf andere...' : 'Absenden'}
               </button>
             </div>
           )}
@@ -308,15 +334,15 @@ const GameScreen = () => {
 
       {/* Results List (Only visible during reveal) */}
       {isReveal && (
-        <div className="w-full max-w-3xl mb-8 fade-in">
+        <div className="w-full max-w-3xl mb-24 fade-in">
           <h4 className="text-slate-400 mb-4 font-bold uppercase text-sm">Schätzungen dieser Runde</h4>
           <div className="space-y-2">
             {playersWithDiff.map((p) => {
                const isRoundWinner = roundWinnerId === p.id || (roundWinnerId === 'TIE' && p.diff === playersWithDiff[0].diff);
                return (
                  <div key={p.id} className={`
-                    flex items-center justify-between p-4 rounded-lg border
-                    ${isRoundWinner ? 'bg-green-900/20 border-green-500/50' : 'bg-slate-800 border-slate-700'}
+                    flex items-center justify-between p-4 rounded-lg border transition-all
+                    ${isRoundWinner ? 'bg-green-900/20 border-green-500/50 scale-[1.02] shadow-lg' : 'bg-slate-800 border-slate-700'}
                  `}>
                     <div className="flex items-center gap-3">
                        <div className="font-bold text-slate-200">{p.name}</div>
@@ -340,7 +366,7 @@ const GameScreen = () => {
             <div className="mt-8 flex justify-center">
                <button 
                  onClick={nextRound}
-                 className="bg-white text-slate-900 px-8 py-3 rounded-full font-bold hover:bg-slate-200 transition-colors flex items-center gap-2"
+                 className="bg-white text-slate-900 px-8 py-3 rounded-full font-bold hover:bg-slate-200 transition-colors flex items-center gap-2 shadow-xl"
                >
                  Nächste Runde <ArrowRight className="w-5 h-5" />
                </button>
@@ -356,12 +382,16 @@ const GameScreen = () => {
 
       {/* Player Status Bar (Always visible but subtle) */}
       {!isReveal && (
-         <div className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur border-t border-slate-800 p-4">
-            <div className="max-w-4xl mx-auto flex gap-4 overflow-x-auto pb-2">
+         <div className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur border-t border-slate-800 p-4 z-20">
+            <div className="max-w-4xl mx-auto flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                {state.players.map(p => (
-                 <div key={p.id} className={`flex-shrink-0 flex items-center gap-2 px-3 py-1 rounded-full text-sm ${p.hasGuessed ? 'bg-green-900/30 text-green-400 border border-green-800' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
-                    <div className={`w-2 h-2 rounded-full ${p.hasGuessed ? 'bg-green-500' : 'bg-slate-500'}`} />
-                    {p.name}: {p.score}
+                 <div key={p.id} className={`
+                    flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                    ${p.hasGuessed ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}
+                 `}>
+                    <div className={`w-2 h-2 rounded-full ${p.hasGuessed ? 'bg-green-500' : 'bg-slate-600'}`} />
+                    <span>{p.name}</span>
+                    <span className="bg-slate-950/50 px-1.5 rounded text-xs ml-1">{p.score}</span>
                  </div>
                ))}
             </div>

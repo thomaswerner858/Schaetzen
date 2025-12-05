@@ -45,6 +45,16 @@ function gameReducer(state: GameState, action: any): GameState {
   }
 }
 
+// Fisher-Yates Shuffle Algorithm
+const shuffleArray = (array: any[]) => {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
+};
+
 export const useGameEngine = () => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const myPlayerId = useRef<string>(localStorage.getItem('schatzduell_pid') || `player-${Math.random().toString(36).substr(2, 9)}`);
@@ -113,11 +123,13 @@ export const useGameEngine = () => {
             return;
         }
 
+        // If time is remaining, count down
         if (currentRef.timeRemaining > 0) {
            await updateDoc(doc(db, "games", ROOM_ID), {
              timeRemaining: currentRef.timeRemaining - 1
            });
         } else {
+           // Time is up (or was set to 0 by submitGuess), evaluate round
            if (timerRef.current) clearInterval(timerRef.current);
            evaluateRound();
         }
@@ -180,7 +192,10 @@ export const useGameEngine = () => {
   const startGame = async () => {
     if (!db) { alert("Firebase nicht konfiguriert!"); return; }
     
-    const questions = await fetchQuestions();
+    let questions = await fetchQuestions();
+    
+    // Shuffle questions so the order is random each game
+    questions = shuffleArray(questions);
 
     const gameRef = doc(db, "games", ROOM_ID);
     
@@ -228,7 +243,6 @@ export const useGameEngine = () => {
     });
   };
 
-  // NEW: Completely resets the game state and removes all players
   const hardReset = async () => {
     if (!db) return;
     const gameRef = doc(db, "games", ROOM_ID);
@@ -254,7 +268,16 @@ export const useGameEngine = () => {
          return p;
        });
 
-       transaction.update(gameRef, { players: updatedPlayers });
+       const updateData: any = { players: updatedPlayers };
+
+       // Check if ALL players have guessed
+       const allGuessed = updatedPlayers.every(p => p.hasGuessed);
+       if (allGuessed) {
+         // Force timer to 0, which triggers the Host to evaluate the round immediately
+         updateData.timeRemaining = 0;
+       }
+
+       transaction.update(gameRef, updateData);
     });
   };
 
