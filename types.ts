@@ -11,23 +11,32 @@ export interface Player {
   score: number;
   currentGuess: number | null;
   hasGuessed: boolean;
-  isHost: boolean; // For this simulation, we'll designate one tab as host for timer logic
+  isHost: boolean;
+  diff?: number; // Optional property to track difference in results
 }
 
 export enum GamePhase {
   LOBBY = 'LOBBY',
+  WRITING = 'WRITING', // New phase for custom mode
   GUESSING = 'GUESSING',
   REVEAL = 'REVEAL',
   GAME_OVER = 'GAME_OVER'
 }
 
+export enum GameMode {
+  PREDEFINED = 'PREDEFINED',
+  CUSTOM = 'CUSTOM'
+}
+
 export interface GameState {
+  mode: GameMode; // Track selected game mode
   phase: GamePhase;
   players: Player[];
   currentQuestionIndex: number;
   timeRemaining: number;
   questions: Question[];
-  winnerId: string | null; // Winner of the round
+  winnerId: string | null;
+  activeQuestionerId: string | null; // ID of the player currently asking the question (Custom Mode)
 }
 
 // Events for the BroadcastChannel simulation

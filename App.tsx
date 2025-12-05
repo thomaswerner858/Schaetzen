@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useGameEngine } from './services/gameEngine';
-import { GamePhase, Player } from './types';
-import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle, XCircle, LogIn, Trash2 } from 'lucide-react';
+import { GamePhase, GameMode } from './types';
+import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle, XCircle, LogIn, Trash2, PenTool, CheckCircle, BrainCircuit, Globe } from 'lucide-react';
 
 const GameScreen = () => {
-  const { state, myPlayerId, joinGame, startGame, cancelGame, hardReset, submitGuess, nextRound, restartGame } = useGameEngine();
+  const { state, myPlayerId, joinGame, startGame, cancelGame, hardReset, submitGuess, nextRound, restartGame, setGameMode, submitCustomQuestion } = useGameEngine();
   const [localGuess, setLocalGuess] = useState<string>('');
   const [playerName, setPlayerName] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
   
+  // Custom Question Form State
+  const [customQ, setCustomQ] = useState('');
+  const [customA, setCustomA] = useState('');
+  const [customU, setCustomU] = useState('');
+
   const currentQuestion = state.questions[state.currentQuestionIndex];
   const me = state.players.find(p => p.id === myPlayerId);
   const isHost = state.players.length > 0 && state.players[0].id === myPlayerId;
+  const isActiveQuestioner = state.mode === GameMode.CUSTOM && state.activeQuestionerId === myPlayerId;
 
   // Check if player is already in the game (e.g. after refresh)
   useEffect(() => {
@@ -23,6 +29,9 @@ const GameScreen = () => {
   // Reset local guess when question changes
   useEffect(() => {
     setLocalGuess('');
+    setCustomQ('');
+    setCustomA('');
+    setCustomU('');
   }, [state.currentQuestionIndex]);
 
   const handleJoin = () => {
@@ -34,6 +43,11 @@ const GameScreen = () => {
   const handleGuessSubmit = () => {
     if (!localGuess) return;
     submitGuess(parseFloat(localGuess));
+  };
+
+  const handleCustomQuestionSubmit = () => {
+      if (!customQ || !customA || !customU) return;
+      submitCustomQuestion(customQ, parseFloat(customA), customU);
   };
 
   // --- VIEW: NAME ENTRY (START SCREEN) ---
@@ -77,7 +91,6 @@ const GameScreen = () => {
              </button>
            </div>
 
-           {/* HARD RESET BUTTON FOR DEV/TESTING */}
            <div className="mt-8 pt-4 border-t border-slate-700 flex justify-center">
              <button 
                onClick={hardReset}
@@ -124,6 +137,41 @@ const GameScreen = () => {
               </div>
             ))}
           </div>
+
+          {/* GAME MODE SELECTION */}
+          {isHost ? (
+              <div className="mb-6 bg-slate-700/50 p-4 rounded-xl">
+                 <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">Spielmodus wählen</h3>
+                 <div className="flex gap-2">
+                     <button 
+                       onClick={() => setGameMode(GameMode.PREDEFINED)}
+                       className={`flex-1 py-3 px-2 rounded-lg text-sm font-bold flex flex-col items-center gap-1 transition-all ${state.mode === GameMode.PREDEFINED ? 'bg-indigo-600 text-white ring-2 ring-indigo-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                     >
+                       <Globe className="w-5 h-5" />
+                       Vordefiniert
+                     </button>
+                     <button 
+                       onClick={() => setGameMode(GameMode.CUSTOM)}
+                       className={`flex-1 py-3 px-2 rounded-lg text-sm font-bold flex flex-col items-center gap-1 transition-all ${state.mode === GameMode.CUSTOM ? 'bg-indigo-600 text-white ring-2 ring-indigo-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                     >
+                       <PenTool className="w-5 h-5" />
+                       Benutzerdefiniert
+                     </button>
+                 </div>
+                 <p className="text-xs text-slate-400 mt-3 text-center min-h-[2.5em]">
+                    {state.mode === GameMode.PREDEFINED 
+                     ? "Fragen aus dem Katalog (Airtable)." 
+                     : "Spieler stellen sich abwechselnd Fragen. Der Verlierer stellt die nächste Frage."}
+                 </p>
+              </div>
+          ) : (
+             <div className="mb-6 text-center">
+                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 rounded-full text-sm text-slate-300">
+                    {state.mode === GameMode.PREDEFINED ? <Globe className="w-4 h-4"/> : <PenTool className="w-4 h-4"/>}
+                    Modus: <span className="font-bold text-white">{state.mode === GameMode.PREDEFINED ? 'Vordefiniert' : 'Benutzerdefiniert'}</span>
+                 </div>
+             </div>
+          )}
 
           <button
             onClick={startGame}
@@ -210,6 +258,87 @@ const GameScreen = () => {
     );
   }
 
+  // --- VIEW: WRITING PHASE (CUSTOM MODE ONLY) ---
+  if (state.phase === GamePhase.WRITING) {
+     const questioner = state.players.find(p => p.id === state.activeQuestionerId);
+     
+     if (isActiveQuestioner) {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900">
+             <div className="w-full max-w-lg bg-slate-800 p-8 rounded-3xl border border-indigo-500 shadow-2xl animate-float">
+                <div className="flex items-center justify-center mb-6 text-indigo-400">
+                   <PenTool className="w-12 h-12" />
+                </div>
+                <h2 className="text-2xl font-bold text-white text-center mb-2">Du bist dran!</h2>
+                <p className="text-slate-400 text-center mb-6">Stelle eine Frage an deine Mitspieler.</p>
+                
+                <div className="space-y-4">
+                   <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase">Frage</label>
+                      <input 
+                         type="text" 
+                         className="w-full bg-slate-700 border-slate-600 rounded-lg p-3 text-white focus:border-indigo-500 outline-none mt-1"
+                         placeholder="z.B. Wie viele Eiffeltürme wiegt ein Blauwal?"
+                         value={customQ}
+                         onChange={e => setCustomQ(e.target.value)}
+                      />
+                   </div>
+                   <div className="flex gap-4">
+                      <div className="flex-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase">Antwort (Zahl)</label>
+                          <input 
+                             type="number" 
+                             className="w-full bg-slate-700 border-slate-600 rounded-lg p-3 text-white focus:border-indigo-500 outline-none mt-1"
+                             placeholder="150"
+                             value={customA}
+                             onChange={e => setCustomA(e.target.value)}
+                          />
+                      </div>
+                      <div className="w-1/3">
+                          <label className="text-xs font-bold text-slate-500 uppercase">Einheit</label>
+                          <input 
+                             type="text" 
+                             className="w-full bg-slate-700 border-slate-600 rounded-lg p-3 text-white focus:border-indigo-500 outline-none mt-1"
+                             placeholder="Tonnen"
+                             value={customU}
+                             onChange={e => setCustomU(e.target.value)}
+                          />
+                      </div>
+                   </div>
+                   
+                   <button 
+                      onClick={handleCustomQuestionSubmit}
+                      disabled={!customQ || !customA || !customU}
+                      className={`w-full py-4 mt-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all
+                        ${(!customQ || !customA || !customU) ? 'bg-slate-700 text-slate-500' : 'bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg'}
+                      `}
+                   >
+                      <CheckCircle className="w-5 h-5" /> Frage stellen
+                   </button>
+                </div>
+             </div>
+          </div>
+        )
+     }
+
+     return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900">
+           <div className="text-center">
+              <div className="relative inline-block">
+                  <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mb-6 mx-auto animate-pulse">
+                      <BrainCircuit className="w-10 h-10 text-indigo-400" />
+                  </div>
+                  <div className="absolute -top-2 -right-2 bg-indigo-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-bounce">
+                     Denkt nach...
+                  </div>
+              </div>
+              <h2 className="text-3xl font-bold text-white mb-2">{questioner?.name} schreibt...</h2>
+              <p className="text-slate-400">Bereite dich vor, die Frage kommt gleich!</p>
+           </div>
+        </div>
+     );
+  }
+
   // --- VIEW: PLAYING & REVEAL (Shared Layout) ---
   const isReveal = state.phase === GamePhase.REVEAL;
   
@@ -245,7 +374,10 @@ const GameScreen = () => {
       <div className="w-full max-w-4xl flex justify-center mt-8 md:mt-4 mb-6">
         <div className="bg-slate-800/80 px-6 py-2 rounded-full border border-slate-700 backdrop-blur-sm">
           <h2 className="text-slate-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            Frage <span className="bg-slate-700 px-2 py-0.5 rounded text-white">{state.currentQuestionIndex + 1}</span> von {state.questions.length}
+            {state.mode === GameMode.PREDEFINED 
+              ? `Frage ${state.currentQuestionIndex + 1} von ${state.questions.length}`
+              : `Runde ${state.currentQuestionIndex + 1}`
+            }
           </h2>
         </div>
       </div>
@@ -262,7 +394,6 @@ const GameScreen = () => {
             <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mt-[-5px]">Sekunden</div>
           </div>
           
-          {/* Decorative ring */}
           {!isReveal && (
              <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 100 100">
                <circle cx="50" cy="50" r="46" stroke="currentColor" strokeWidth="2" fill="none" className="text-slate-800" />
@@ -271,7 +402,7 @@ const GameScreen = () => {
                  stroke="currentColor" strokeWidth="2" fill="none" 
                  className={`${timerIsCritical ? 'text-red-500' : 'text-indigo-500'} transition-all duration-1000`}
                  strokeDasharray="289"
-                 strokeDashoffset={289 - (289 * state.timeRemaining) / 15} // Based on 15s round duration
+                 strokeDashoffset={289 - (289 * state.timeRemaining) / 15}
                  strokeLinecap="round"
                />
              </svg>
@@ -282,8 +413,13 @@ const GameScreen = () => {
       <div className="w-full max-w-3xl bg-slate-800 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden mb-8 relative">
         {/* Question Area */}
         <div className="p-8 md:p-12 text-center bg-gradient-to-b from-slate-800 to-slate-800/50">
+           {state.mode === GameMode.CUSTOM && (
+             <div className="text-xs text-indigo-400 font-bold uppercase mb-2 tracking-widest">
+                Frage von {state.players.find(p => p.id === state.activeQuestionerId)?.name}
+             </div>
+           )}
            <h3 className="text-2xl md:text-3xl font-bold text-white leading-relaxed">
-             {currentQuestion?.frage}
+             {currentQuestion?.frage || "Lade Frage..."}
            </h3>
         </div>
 
@@ -294,9 +430,14 @@ const GameScreen = () => {
              <div className="text-center fade-in">
                <p className="text-slate-400 text-sm uppercase tracking-widest mb-2">Die richtige Antwort ist</p>
                <div className="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 mb-2">
-                 {currentQuestion.antwort.toLocaleString('de-DE')}
+                 {currentQuestion?.antwort?.toLocaleString('de-DE')}
                </div>
-               <p className="text-xl text-slate-300 font-medium">{currentQuestion.einheit}</p>
+               <p className="text-xl text-slate-300 font-medium">{currentQuestion?.einheit}</p>
+             </div>
+          ) : isActiveQuestioner ? (
+             <div className="text-center py-8">
+                 <p className="text-slate-400 mb-2">Du hast diese Frage gestellt.</p>
+                 <p className="text-white font-bold text-lg animate-pulse">Warte auf die Schätzungen deiner Freunde...</p>
              </div>
           ) : (
             <div className="flex flex-col items-center gap-4 max-w-sm mx-auto">
@@ -324,14 +465,14 @@ const GameScreen = () => {
                     disabled={me?.hasGuessed}
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium pointer-events-none hidden sm:inline">
-                    {currentQuestion.einheit}
+                    {currentQuestion?.einheit}
                   </span>
                 </div>
               </div>
               
               {/* Mobile Unit Display (Below input if screen is very small) */}
               <div className="sm:hidden text-slate-400 font-medium text-sm -mt-2">
-                {currentQuestion.einheit}
+                {currentQuestion?.einheit}
               </div>
               
               <button
@@ -357,7 +498,16 @@ const GameScreen = () => {
           <h4 className="text-slate-400 mb-4 font-bold uppercase text-sm">Schätzungen dieser Runde</h4>
           <div className="space-y-2">
             {playersWithDiff.map((p) => {
-               const isRoundWinner = roundWinnerId === p.id || (roundWinnerId === 'TIE' && p.diff === playersWithDiff[0].diff);
+               // Skip rendering the questioner in the guess list for Custom Mode
+               if (state.mode === GameMode.CUSTOM && p.id === state.activeQuestionerId) return null;
+
+               const isRoundWinner = roundWinnerId === p.id || (roundWinnerId === 'TIE' && p.diff === playersWithDiff.filter(pl => pl.id !== state.activeQuestionerId)[0].diff);
+               
+               // Determine loser for next round indicator (only relevant in custom mode)
+               // Sort again to be safe to find the actual last place visually
+               // But usually the list is already sorted by diff asc. Last one is loser.
+               const isLoser = state.mode === GameMode.CUSTOM && p.diff === playersWithDiff[playersWithDiff.length-1].diff;
+
                return (
                  <div key={p.id} className={`
                     flex items-center justify-between p-4 rounded-lg border transition-all
@@ -366,14 +516,15 @@ const GameScreen = () => {
                     <div className="flex items-center gap-3">
                        <div className="font-bold text-slate-200">{p.name}</div>
                        {isRoundWinner && <Trophy className="w-4 h-4 text-yellow-400" />}
+                       {isLoser && state.mode === GameMode.CUSTOM && <span className="text-xs bg-red-900 text-red-200 px-2 py-0.5 rounded border border-red-700">Nächster Fragesteller</span>}
                     </div>
                     
                     <div className="flex flex-col items-end">
                        <div className="font-mono text-lg font-bold">
-                         {p.currentGuess?.toLocaleString('de-DE') ?? '-'} <span className="text-xs font-sans text-slate-500">{currentQuestion.einheit}</span>
+                         {p.currentGuess?.toLocaleString('de-DE') ?? '-'} <span className="text-xs font-sans text-slate-500">{currentQuestion?.einheit}</span>
                        </div>
                        <div className="text-xs text-slate-400">
-                         Diff: {p.diff.toLocaleString('de-DE')}
+                         Diff: {p.diff?.toLocaleString('de-DE')}
                        </div>
                     </div>
                  </div>
@@ -399,11 +550,22 @@ const GameScreen = () => {
         </div>
       )}
 
-      {/* Player Status Bar (Always visible but subtle) */}
+      {/* Player Status Bar */}
       {!isReveal && (
          <div className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur border-t border-slate-800 p-4 z-20">
             <div className="max-w-4xl mx-auto flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-               {state.players.map(p => (
+               {state.players.map(p => {
+                 // In Custom mode, visually distinguish the questioner
+                 if (state.mode === GameMode.CUSTOM && p.id === state.activeQuestionerId) {
+                    return (
+                        <div key={p.id} className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+                            <PenTool className="w-3 h-3" />
+                            <span>{p.name} (Stellt Frage)</span>
+                        </div>
+                    )
+                 }
+                 
+                 return (
                  <div key={p.id} className={`
                     flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors
                     ${p.hasGuessed ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}
@@ -412,7 +574,7 @@ const GameScreen = () => {
                     <span>{p.name}</span>
                     <span className="bg-slate-950/50 px-1.5 rounded text-xs ml-1">{p.score}</span>
                  </div>
-               ))}
+               )})}
             </div>
          </div>
       )}
