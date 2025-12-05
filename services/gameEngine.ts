@@ -278,12 +278,19 @@ export const useGameEngine = () => {
           updatedQuestions[data.currentQuestionIndex] = newQuestion;
        }
 
+       // Prepare players for guessing round
+       // IMPORTANT: The active questioner is marked as 'hasGuessed: true' so we don't wait for them
+       const updatedPlayers = data.players.map(p => ({
+          ...p,
+          currentGuess: null,
+          hasGuessed: (data.mode === GameMode.CUSTOM && p.id === data.activeQuestionerId) ? true : false
+       }));
+
        transaction.update(gameRef, {
          questions: updatedQuestions,
          phase: GamePhase.GUESSING,
          timeRemaining: ROUND_DURATION,
-         // Reset guesses for this round
-         players: data.players.map(p => ({ ...p, currentGuess: null, hasGuessed: false }))
+         players: updatedPlayers
        });
     });
   };
@@ -342,13 +349,9 @@ export const useGameEngine = () => {
 
        const updateData: any = { players: updatedPlayers };
 
-       // Check if ALL eligible players have guessed
-       // In Custom Mode, the activeQuestionerId does NOT guess
-       const eligiblePlayers = data.mode === GameMode.CUSTOM 
-          ? updatedPlayers.filter(p => p.id !== data.activeQuestionerId)
-          : updatedPlayers;
-
-       const allGuessed = eligiblePlayers.every(p => p.hasGuessed) && eligiblePlayers.length > 0;
+       // Check if ALL players have guessed (marked as true)
+       // Since the questioner starts as 'true', this simple check covers both modes correctly.
+       const allGuessed = updatedPlayers.every(p => p.hasGuessed);
        
        if (allGuessed) {
          updateData.timeRemaining = 0;
