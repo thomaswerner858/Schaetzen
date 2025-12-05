@@ -1,0 +1,5 @@
+{
+  "name": "Das Schätzduell",
+  "description": "Ein interaktives Multiplayer-Schätzspiel. Treten Sie gegen Freunde an, schätzen Sie Antworten auf knifflige Fragen und sammeln Sie Punkte! (Öffnen Sie mehrere Tabs, um den Multiplayer-Modus zu simulieren).",
+  "requestFramePermissions": []
+}
