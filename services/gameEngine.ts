@@ -36,8 +36,6 @@ const initialState: GameState = {
   winnerId: null,
 };
 
-// Reducer now mainly handles local UI optimisations or purely local state if needed.
-// Most state comes directly from Firestore via SYNC.
 function gameReducer(state: GameState, action: any): GameState {
   switch (action.type) {
     case 'SYNC_STATE':
@@ -58,8 +56,14 @@ export const useGameEngine = () => {
 
   const isHost = useRef<boolean>(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Keep a ref to the latest state so intervals can read it without adding state to dependencies
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
-  // --- FIREBASE SYNC & JOIN LOGIC ---
+  // --- FIREBASE SYNC LOGIC (Passive) ---
   useEffect(() => {
     if (!db) {
       console.warn("Firebase not configured. Check constants.ts");
@@ -68,12 +72,12 @@ export const useGameEngine = () => {
 
     const gameRef = doc(db, "games", ROOM_ID);
 
-    // 1. Listen to real-time updates
+    // Listen to real-time updates
     const unsubscribe = onSnapshot(gameRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data() as GameState;
         
-        // Simple logic to determine if I am the host (e.g., first player in list)
+        // Simple logic to determine if I am the host (first player in list)
         if (data.players.length > 0 && data.players[0].id === myPlayerId.current) {
           isHost.current = true;
         } else {
@@ -87,40 +91,6 @@ export const useGameEngine = () => {
       }
     });
 
-    // 2. Auto-Join
-    const joinGame = async () => {
-      const me: Player = {
-        id: myPlayerId.current,
-        name: `Spieler ${myPlayerId.current.substr(-4)}`,
-        score: 0,
-        currentGuess: null,
-        hasGuessed: false,
-        isHost: false, 
-      };
-
-      try {
-        await runTransaction(db, async (transaction) => {
-          const sfDoc = await transaction.get(gameRef);
-          if (!sfDoc.exists()) return;
-
-          const currentPlayers = sfDoc.data().players as Player[];
-          const playerExists = currentPlayers.find(p => p.id === me.id);
-
-          if (!playerExists) {
-             // Only join if in Lobby to avoid joining mid-game weirdness, 
-             // but for robustness allow re-join if needed.
-             transaction.update(gameRef, {
-               players: arrayUnion(me)
-             });
-          }
-        });
-      } catch (e) {
-        console.error("Error joining game:", e);
-      }
-    };
-
-    joinGame();
-
     return () => {
       unsubscribe();
       if (timerRef.current) clearInterval(timerRef.current);
@@ -129,23 +99,23 @@ export const useGameEngine = () => {
 
 
   // --- HOST TIMER LOGIC ---
-  // The host is responsible for ticking the clock in Firestore
   useEffect(() => {
     if (!db) return;
 
-    // Only the host runs the timer interval
     if (isHost.current && state.phase === GamePhase.GUESSING) {
-      // Clear existing to avoid doubles
       if (timerRef.current) clearInterval(timerRef.current);
 
       timerRef.current = setInterval(async () => {
-        // We read latest state from ref/closure, but better to check local state
-        // In a real production app, we would use ServerTimestamp + offset
-        // For this demo, writing the tick every second is easier to understand.
+        const currentRef = stateRef.current; 
         
-        if (state.timeRemaining > 0) {
+        if (currentRef.phase !== GamePhase.GUESSING) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            return;
+        }
+
+        if (currentRef.timeRemaining > 0) {
            await updateDoc(doc(db, "games", ROOM_ID), {
-             timeRemaining: state.timeRemaining - 1
+             timeRemaining: currentRef.timeRemaining - 1
            });
         } else {
            if (timerRef.current) clearInterval(timerRef.current);
@@ -160,21 +130,60 @@ export const useGameEngine = () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phase, state.timeRemaining, isHost.current]); // Add isHost.current dependency
+  }, [state.phase]); 
 
-  
+
   // --- ACTIONS ---
+
+  // Manuell beitreten statt Auto-Join
+  const joinGame = async (playerName: string) => {
+    if (!db) return;
+    const gameRef = doc(db, "games", ROOM_ID);
+
+    const me: Player = {
+      id: myPlayerId.current,
+      name: playerName,
+      score: 0,
+      currentGuess: null,
+      hasGuessed: false,
+      isHost: false, 
+    };
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const sfDoc = await transaction.get(gameRef);
+        if (!sfDoc.exists()) {
+           // Should ideally not happen as listener creates it, but fallback:
+           transaction.set(gameRef, { ...initialState, players: [me] });
+           return;
+        }
+
+        const currentPlayers = sfDoc.data().players as Player[];
+        const playerIndex = currentPlayers.findIndex(p => p.id === me.id);
+
+        if (playerIndex >= 0) {
+           // Player exists, just update name if needed
+           currentPlayers[playerIndex].name = playerName;
+           transaction.update(gameRef, { players: currentPlayers });
+        } else {
+           // New player
+           transaction.update(gameRef, {
+             players: arrayUnion(me)
+           });
+        }
+      });
+    } catch (e) {
+      console.error("Error joining game:", e);
+    }
+  };
 
   const startGame = async () => {
     if (!db) { alert("Firebase nicht konfiguriert!"); return; }
     
-    // Fetch questions from Airtable (or Mock)
     const questions = await fetchQuestions();
 
     const gameRef = doc(db, "games", ROOM_ID);
     
-    // Reset scores for all existing players
-    // We need to read current players first to map them cleanly
     const snap = await getDoc(gameRef);
     if(!snap.exists()) return;
     
@@ -195,15 +204,33 @@ export const useGameEngine = () => {
     });
   };
 
+  const cancelGame = async () => {
+    if (!db) return;
+    const gameRef = doc(db, "games", ROOM_ID);
+
+    const snap = await getDoc(gameRef);
+    if(!snap.exists()) return;
+
+    const currentPlayers = (snap.data().players as Player[]).map(p => ({
+      ...p,
+      score: 0,
+      currentGuess: null,
+      hasGuessed: false
+    }));
+
+    await updateDoc(gameRef, {
+      phase: GamePhase.LOBBY,
+      currentQuestionIndex: 0,
+      timeRemaining: ROUND_DURATION,
+      questions: [],
+      winnerId: null,
+      players: currentPlayers
+    });
+  };
+
   const submitGuess = async (guess: number) => {
     if (!db) return;
     const gameRef = doc(db, "games", ROOM_ID);
-    
-    // Optimistic UI update could happen here, but we rely on Firestore sync
-    
-    // Update ONLY my player in the array. 
-    // Firestore array update is tricky for specific items.
-    // We read, modify, write.
     
     await runTransaction(db, async (transaction) => {
        const sfDoc = await transaction.get(gameRef);
@@ -222,9 +249,7 @@ export const useGameEngine = () => {
   };
 
   const evaluateRound = async () => {
-    // Only Host calculates results
     if (!db) return;
-    
     const gameRef = doc(db, "games", ROOM_ID);
     
     await runTransaction(db, async (transaction) => {
@@ -232,8 +257,6 @@ export const useGameEngine = () => {
         if (!sfDoc.exists()) return;
         
         const data = sfDoc.data() as GameState;
-        
-        // Double check phase to prevent multi-trigger
         if (data.phase !== GamePhase.GUESSING) return;
 
         const currentQuestion = data.questions[data.currentQuestionIndex];
@@ -242,20 +265,16 @@ export const useGameEngine = () => {
         let bestDiff = Number.MAX_VALUE;
         let winners: string[] = [];
 
-        // Logic matches original
         const playersWithDiff = data.players.map(p => {
-             // Treat no guess as infinity diff
              const guess = p.currentGuess;
              if (guess === null) return { ...p, diff: Number.MAX_VALUE };
              return { ...p, diff: Math.abs(guess - correctAnswer) };
         });
 
-        // Find min diff
         playersWithDiff.forEach(p => {
             if (p.diff < bestDiff) bestDiff = p.diff;
         });
         
-        // Find winners
         if (bestDiff !== Number.MAX_VALUE) {
             winners = playersWithDiff.filter(p => p.diff === bestDiff).map(p => p.id);
         }
@@ -287,7 +306,6 @@ export const useGameEngine = () => {
     if (data.currentQuestionIndex >= data.questions.length - 1) {
         await updateDoc(gameRef, { phase: GamePhase.GAME_OVER });
     } else {
-        // Reset guesses for next round
         const resetPlayers = data.players.map(p => ({ ...p, currentGuess: null, hasGuessed: false }));
         
         await updateDoc(gameRef, {
@@ -301,14 +319,15 @@ export const useGameEngine = () => {
   };
 
   const restartGame = async () => {
-     // Re-uses startGame logic effectively
      await startGame();
   };
 
   return {
     state,
     myPlayerId: myPlayerId.current,
+    joinGame,
     startGame,
+    cancelGame,
     submitGuess,
     nextRound,
     restartGame

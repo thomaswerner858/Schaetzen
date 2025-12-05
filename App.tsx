@@ -1,63 +1,85 @@
 import React, { useState, useEffect } from 'react';
 import { useGameEngine } from './services/gameEngine';
 import { GamePhase, Player } from './types';
-import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle } from 'lucide-react';
-
-// --- Subcomponents defined here for single-file XML structure simplicity ---
-
-const PlayerList = ({ players, myId, winnerId }: { players: Player[], myId: string, winnerId: string | null }) => (
-  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-2xl">
-    {players.map((player) => {
-      const isMe = player.id === myId;
-      const isWinner = winnerId === player.id || (winnerId === 'TIE' && false /* handled in logic logic */); 
-      // Simplified winner check visual:
-      
-      return (
-        <div 
-          key={player.id} 
-          className={`
-            relative p-4 rounded-xl border-2 transition-all duration-300
-            ${isMe ? 'border-indigo-400 bg-indigo-900/30' : 'border-slate-700 bg-slate-800/50'}
-            ${isWinner ? 'ring-2 ring-green-400 border-green-500 bg-green-900/20' : ''}
-          `}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg
-              ${isMe ? 'bg-indigo-500 text-white' : 'bg-slate-600 text-slate-200'}
-            `}>
-              {player.name.charAt(0)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm truncate text-slate-200">
-                {player.name} {isMe && '(Du)'}
-              </p>
-              <p className="text-xs text-slate-400">Punkte: {player.score}</p>
-            </div>
-          </div>
-          {player.hasGuessed && winnerId === null && (
-             <div className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full animate-pulse" title="Geschätzt"></div>
-          )}
-        </div>
-      );
-    })}
-  </div>
-);
+import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle, XCircle, LogIn } from 'lucide-react';
 
 const GameScreen = () => {
-  const { state, myPlayerId, startGame, submitGuess, nextRound, restartGame } = useGameEngine();
+  const { state, myPlayerId, joinGame, startGame, cancelGame, submitGuess, nextRound, restartGame } = useGameEngine();
   const [localGuess, setLocalGuess] = useState<string>('');
-  
-  // Auto-submit mechanism could be added here, but prompt implies simple last-valid-input logic.
-  // We will submit on change or blur, but let's submit on a button press to be explicit.
+  const [playerName, setPlayerName] = useState('');
+  const [hasJoined, setHasJoined] = useState(false);
   
   const currentQuestion = state.questions[state.currentQuestionIndex];
   const me = state.players.find(p => p.id === myPlayerId);
+  const isHost = state.players.length > 0 && state.players[0].id === myPlayerId;
 
-  // Handle local guess submission
+  // Check if player is already in the game (e.g. after refresh)
+  useEffect(() => {
+    if (state.players.some(p => p.id === myPlayerId)) {
+      setHasJoined(true);
+    }
+  }, [state.players, myPlayerId]);
+
+  // Reset local guess when question changes
+  useEffect(() => {
+    setLocalGuess('');
+  }, [state.currentQuestionIndex]);
+
+  const handleJoin = () => {
+    if (!playerName.trim()) return;
+    joinGame(playerName);
+    setHasJoined(true);
+  };
+
   const handleGuessSubmit = () => {
     if (!localGuess) return;
     submitGuess(parseFloat(localGuess));
   };
+
+  // --- VIEW: NAME ENTRY (START SCREEN) ---
+  if (!hasJoined) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950">
+         <div className="mb-10 text-center animate-float">
+          <h1 className="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-300 tracking-tight">
+            Das Schätzduell
+          </h1>
+          <p className="text-slate-400 mt-2 text-lg">Wer liegt am nächsten dran?</p>
+        </div>
+
+        <div className="w-full max-w-md bg-slate-800/80 backdrop-blur-md rounded-2xl p-8 border border-slate-700 shadow-2xl">
+           <h2 className="text-xl font-bold text-white mb-6 text-center">Profil erstellen</h2>
+           
+           <div className="space-y-4">
+             <div>
+               <label className="block text-sm font-medium text-slate-400 mb-1">Dein Name</label>
+               <input 
+                 type="text" 
+                 value={playerName}
+                 onChange={(e) => setPlayerName(e.target.value)}
+                 onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+                 placeholder="z.B. QuizMaster 3000"
+                 className="w-full bg-slate-700 text-white p-4 rounded-xl border border-slate-600 focus:border-indigo-500 outline-none transition-colors"
+                 maxLength={15}
+               />
+             </div>
+             
+             <button
+               onClick={handleJoin}
+               disabled={!playerName.trim()}
+               className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all duration-300
+                 ${playerName.trim() 
+                   ? 'bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg' 
+                   : 'bg-slate-700 text-slate-500 cursor-not-allowed'}
+               `}
+             >
+               <LogIn className="w-5 h-5" /> Beitreten
+             </button>
+           </div>
+        </div>
+      </div>
+    );
+  }
 
   // --- VIEW: LOBBY ---
   if (state.phase === GamePhase.LOBBY) {
@@ -118,7 +140,6 @@ const GameScreen = () => {
 
   // --- VIEW: GAME OVER ---
   if (state.phase === GamePhase.GAME_OVER) {
-    // Sort players by total score
     const sortedPlayers = [...state.players].sort((a, b) => b.score - a.score);
     const winner = sortedPlayers[0];
     const isWinner = winner.id === myPlayerId;
@@ -147,13 +168,24 @@ const GameScreen = () => {
           ))}
         </div>
 
-        <button
-          onClick={restartGame}
-          className="px-8 py-3 bg-white text-slate-900 rounded-full font-bold hover:bg-slate-200 transition-colors flex items-center gap-2"
-        >
-          <RefreshCw className="w-5 h-5" />
-          Neues Spiel starten
-        </button>
+        <div className="flex gap-4">
+          <button
+            onClick={restartGame}
+            className="px-8 py-3 bg-white text-slate-900 rounded-full font-bold hover:bg-slate-200 transition-colors flex items-center gap-2"
+          >
+            <RefreshCw className="w-5 h-5" />
+            Neues Spiel starten
+          </button>
+          
+          {isHost && (
+            <button 
+              onClick={cancelGame}
+              className="px-8 py-3 bg-slate-800 text-slate-300 border border-slate-700 rounded-full font-bold hover:bg-slate-700 hover:text-white transition-colors"
+            >
+              Zurück zur Lobby
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -161,7 +193,6 @@ const GameScreen = () => {
   // --- VIEW: PLAYING & REVEAL (Shared Layout) ---
   const isReveal = state.phase === GamePhase.REVEAL;
   
-  // Calculate differences for reveal sorting
   const playersWithDiff = [...state.players].map(p => ({
     ...p,
     diff: p.currentGuess !== null ? Math.abs(p.currentGuess - currentQuestion.antwort) : Infinity
@@ -170,9 +201,22 @@ const GameScreen = () => {
   const roundWinnerId = state.winnerId;
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-4 md:p-8 bg-slate-900">
+    <div className="min-h-screen flex flex-col items-center p-4 md:p-8 bg-slate-900 relative">
+      
+      {/* HOST CONTROLS */}
+      {isHost && (
+        <button 
+          onClick={cancelGame}
+          className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold"
+          title="Spiel für alle abbrechen und zur Lobby zurückkehren"
+        >
+          <XCircle className="w-4 h-4" />
+          Spiel abbrechen
+        </button>
+      )}
+
       {/* Header / Scoreboard */}
-      <div className="w-full max-w-4xl flex justify-between items-start mb-8">
+      <div className="w-full max-w-4xl flex justify-between items-start mb-8 mt-8 md:mt-0">
         <div>
           <h2 className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Frage {state.currentQuestionIndex + 1} / {state.questions.length}</h2>
           <div className="flex gap-1">
@@ -276,14 +320,21 @@ const GameScreen = () => {
             })}
           </div>
           
-          <div className="mt-8 flex justify-center">
-             <button 
-               onClick={nextRound}
-               className="bg-white text-slate-900 px-8 py-3 rounded-full font-bold hover:bg-slate-200 transition-colors flex items-center gap-2"
-             >
-               Nächste Runde <ArrowRight className="w-5 h-5" />
-             </button>
-          </div>
+          {isHost && (
+            <div className="mt-8 flex justify-center">
+               <button 
+                 onClick={nextRound}
+                 className="bg-white text-slate-900 px-8 py-3 rounded-full font-bold hover:bg-slate-200 transition-colors flex items-center gap-2"
+               >
+                 Nächste Runde <ArrowRight className="w-5 h-5" />
+               </button>
+            </div>
+          )}
+          {!isHost && (
+            <div className="mt-8 text-center text-slate-500 animate-pulse">
+               Warte auf Spielleiter für nächste Runde...
+            </div>
+          )}
         </div>
       )}
 
