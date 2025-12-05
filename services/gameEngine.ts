@@ -201,6 +201,17 @@ export const useGameEngine = () => {
     if(!snap.exists()) return;
     
     const data = snap.data() as GameState;
+
+    // --- VALIDATION START ---
+    if (data.mode === GameMode.CUSTOM && data.players.length < 3) {
+        alert("Für den benutzerdefinierten Modus werden mindestens 3 Spieler benötigt!");
+        return;
+    }
+    if (data.mode === GameMode.PREDEFINED && data.players.length < 2) {
+        alert("Es werden mindestens 2 Spieler benötigt, um zu starten.");
+        return;
+    }
+    // --- VALIDATION END ---
     
     const currentPlayers = data.players.map(p => ({
       ...p,
