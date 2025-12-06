@@ -160,6 +160,7 @@ export const useGameEngine = () => {
       currentGuess: null,
       hasGuessed: false,
       isHost: false, 
+      diff: null // Initialize with null instead of undefined
     };
 
     try {
@@ -217,7 +218,8 @@ export const useGameEngine = () => {
       ...p,
       score: 0,
       currentGuess: null,
-      hasGuessed: false
+      hasGuessed: false,
+      diff: null // Reset diff
     }));
 
     if (data.mode === GameMode.PREDEFINED) {
@@ -284,7 +286,8 @@ export const useGameEngine = () => {
           ...p,
           currentGuess: null,
           // Set explicit 'hasGuessed: true' for the questioner to keep UI clean
-          hasGuessed: (data.mode === GameMode.CUSTOM && p.id === data.activeQuestionerId) ? true : false
+          hasGuessed: (data.mode === GameMode.CUSTOM && p.id === data.activeQuestionerId) ? true : false,
+          diff: null // clear previous diffs
        }));
 
        transaction.update(gameRef, {
@@ -307,7 +310,8 @@ export const useGameEngine = () => {
       ...p,
       score: 0,
       currentGuess: null,
-      hasGuessed: false
+      hasGuessed: false,
+      diff: null
     }));
 
     await updateDoc(gameRef, {
@@ -410,9 +414,10 @@ export const useGameEngine = () => {
 
         // Merge evaluated players back into the main list and assign scores
         const scoredPlayers = data.players.map(p => {
-             // If this player was the questioner, keep them as is (maybe add diff=null for UI)
+             // If this player was the questioner, keep them as is.
+             // FIX: Use null instead of undefined for Firestore compatibility
              if (data.mode === GameMode.CUSTOM && p.id === data.activeQuestionerId) {
-                 return { ...p, diff: undefined }; 
+                 return { ...p, diff: null }; 
              }
 
              const evPlayer = evaluatedPlayers.find(ep => ep.id === p.id);
@@ -445,7 +450,8 @@ export const useGameEngine = () => {
         if (data.currentQuestionIndex >= data.questions.length - 1) {
             await updateDoc(gameRef, { phase: GamePhase.GAME_OVER });
         } else {
-            const resetPlayers = data.players.map(p => ({ ...p, currentGuess: null, hasGuessed: false, diff: undefined }));
+            // FIX: Use null instead of undefined for diff
+            const resetPlayers = data.players.map(p => ({ ...p, currentGuess: null, hasGuessed: false, diff: null }));
             await updateDoc(gameRef, {
                 phase: GamePhase.GUESSING,
                 currentQuestionIndex: data.currentQuestionIndex + 1,
@@ -473,7 +479,8 @@ export const useGameEngine = () => {
              if (otherPlayers.length > 0) nextQuestionerId = otherPlayers[0].id;
         }
 
-        const resetPlayers = data.players.map(p => ({ ...p, currentGuess: null, hasGuessed: false, diff: undefined }));
+        // FIX: Use null instead of undefined for diff
+        const resetPlayers = data.players.map(p => ({ ...p, currentGuess: null, hasGuessed: false, diff: null }));
 
         await updateDoc(gameRef, {
             phase: GamePhase.WRITING, // Go to writing phase instead of guessing

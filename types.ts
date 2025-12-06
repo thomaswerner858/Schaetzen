@@ -12,7 +12,7 @@ export interface Player {
   currentGuess: number | null;
   hasGuessed: boolean;
   isHost: boolean;
-  diff?: number; // Optional property to track difference in results
+  diff?: number | null; // Optional property to track difference in results, allows null for Firestore compatibility
 }
 
 export enum GamePhase {
