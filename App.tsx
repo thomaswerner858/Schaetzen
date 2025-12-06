@@ -286,7 +286,18 @@ const GameScreen = () => {
      
      if (isActiveQuestioner) {
         return (
-          <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900">
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900 relative">
+             {isHost && (
+                <button 
+                  onClick={cancelGame}
+                  className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold z-10"
+                  title="Spiel für alle abbrechen und zur Lobby zurückkehren"
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span className="hidden md:inline">Spiel abbrechen</span>
+                </button>
+             )}
+             
              <div className="w-full max-w-lg bg-slate-800 p-8 rounded-3xl border border-indigo-500 shadow-2xl animate-float">
                 <div className="flex items-center justify-center mb-6 text-indigo-400">
                    <PenTool className="w-12 h-12" />
@@ -344,7 +355,18 @@ const GameScreen = () => {
      }
 
      return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900">
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900 relative">
+           {isHost && (
+              <button 
+                onClick={cancelGame}
+                className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold z-10"
+                title="Spiel für alle abbrechen und zur Lobby zurückkehren"
+              >
+                <XCircle className="w-4 h-4" />
+                <span className="hidden md:inline">Spiel abbrechen</span>
+              </button>
+           )}
+
            <div className="text-center">
               <div className="relative inline-block">
                   <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mb-6 mx-auto animate-pulse">
