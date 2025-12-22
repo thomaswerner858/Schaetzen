@@ -1,3 +1,4 @@
+
 import { useEffect, useReducer, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -160,7 +161,7 @@ export const useGameEngine = () => {
       currentGuess: null,
       hasGuessed: false,
       isHost: false, 
-      diff: null // Initialize with null instead of undefined
+      diff: null
     };
 
     try {
@@ -219,11 +220,10 @@ export const useGameEngine = () => {
       score: 0,
       currentGuess: null,
       hasGuessed: false,
-      diff: null // Reset diff
+      diff: null
     }));
 
     if (data.mode === GameMode.PREDEFINED) {
-      // Standard Mode: Fetch questions and start guessing
       let questions = await fetchQuestions();
       questions = shuffleArray(questions);
 
@@ -237,14 +237,13 @@ export const useGameEngine = () => {
         activeQuestionerId: null
       });
     } else {
-      // Custom Mode: Host starts writing the first question
-      const hostId = currentPlayers[0].id; // Host asks first
+      const hostId = currentPlayers[0].id;
       
       await updateDoc(gameRef, {
         phase: GamePhase.WRITING,
         currentQuestionIndex: 0,
         timeRemaining: ROUND_DURATION,
-        questions: [], // Starts empty, fills up dynamically
+        questions: [],
         players: currentPlayers,
         winnerId: null,
         activeQuestionerId: hostId
@@ -252,7 +251,6 @@ export const useGameEngine = () => {
     }
   };
 
-  // Only for Custom Mode
   const submitCustomQuestion = async (frage: string, antwort: number, einheit: string) => {
     if (!db) return;
     const gameRef = doc(db, "games", ROOM_ID);
@@ -270,9 +268,6 @@ export const useGameEngine = () => {
          einheit
        };
 
-       // Add new question to the array (or replace current index if we want history)
-       // Since custom mode builds history, we append. 
-       // If index is 0 and empty, we set it.
        const updatedQuestions = [...data.questions];
        if (updatedQuestions.length <= data.currentQuestionIndex) {
           updatedQuestions.push(newQuestion);
@@ -280,14 +275,11 @@ export const useGameEngine = () => {
           updatedQuestions[data.currentQuestionIndex] = newQuestion;
        }
 
-       // Prepare players for guessing round
-       // IMPORTANT: The active questioner is marked as 'hasGuessed: true' so we don't wait for them
        const updatedPlayers = data.players.map(p => ({
           ...p,
           currentGuess: null,
-          // Set explicit 'hasGuessed: true' for the questioner to keep UI clean
           hasGuessed: (data.mode === GameMode.CUSTOM && p.id === data.activeQuestionerId) ? true : false,
-          diff: null // clear previous diffs
+          diff: null
        }));
 
        transaction.update(gameRef, {
@@ -299,7 +291,40 @@ export const useGameEngine = () => {
     });
   };
 
-  const cancelGame = async () => {
+  /**
+   * Ends the current game session and shows the final leaderboard.
+   * Anyone can trigger this.
+   */
+  const endGame = async () => {
+    if (!db) return;
+    const gameRef = doc(db, "games", ROOM_ID);
+
+    const snap = await getDoc(gameRef);
+    if(!snap.exists()) return;
+
+    const data = snap.data() as GameState;
+
+    // Set phase to GAME_OVER to show final standings
+    // We don't reset scores here, so the leaderboard is accurate.
+    const cleanPlayers = data.players.map(p => ({
+      ...p,
+      currentGuess: null,
+      hasGuessed: false,
+      diff: null
+    }));
+
+    await updateDoc(gameRef, {
+      phase: GamePhase.GAME_OVER,
+      players: cleanPlayers,
+      timeRemaining: 0,
+      winnerId: null
+    });
+  };
+
+  /**
+   * Completely resets the game state and returns everyone to the lobby.
+   */
+  const backToLobby = async () => {
     if (!db) return;
     const gameRef = doc(db, "games", ROOM_ID);
 
@@ -354,12 +379,9 @@ export const useGameEngine = () => {
 
        const updateData: any = { players: updatedPlayers };
 
-       // Check if ALL players have guessed
-       // CRITICAL FIX: If in Custom Mode, we MUST ignore the activeQuestionerId in this check.
-       // Even if their 'hasGuessed' status is technically false (sync lag), they don't block the round.
        const allGuessed = updatedPlayers.every(p => {
            if (data.mode === GameMode.CUSTOM && p.id === data.activeQuestionerId) {
-               return true; // Ignore the questioner, assume they are ready
+               return true;
            }
            return p.hasGuessed;
        });
@@ -384,7 +406,6 @@ export const useGameEngine = () => {
         if (data.phase !== GamePhase.GUESSING) return;
 
         const currentQuestion = data.questions[data.currentQuestionIndex];
-        // If question missing (e.g. sync error), abort
         if (!currentQuestion) return;
 
         const correctAnswer = currentQuestion.antwort;
@@ -392,18 +413,16 @@ export const useGameEngine = () => {
         let bestDiff = Number.MAX_VALUE;
         let winners: string[] = [];
 
-        // In custom mode, exclude the questioner from evaluation
         const playersToEvaluate = data.mode === GameMode.CUSTOM
             ? data.players.filter(p => p.id !== data.activeQuestionerId)
             : data.players;
 
         const evaluatedPlayers = playersToEvaluate.map(p => {
              const guess = p.currentGuess;
-             if (guess === null) return { ...p, diff: Number.MAX_VALUE }; // Didn't guess
+             if (guess === null) return { ...p, diff: Number.MAX_VALUE };
              return { ...p, diff: Math.abs(guess - correctAnswer) };
         });
 
-        // Calculate Winner
         evaluatedPlayers.forEach(p => {
             if (p.diff < bestDiff) bestDiff = p.diff;
         });
@@ -412,10 +431,7 @@ export const useGameEngine = () => {
             winners = evaluatedPlayers.filter(p => p.diff === bestDiff).map(p => p.id);
         }
 
-        // Merge evaluated players back into the main list and assign scores
         const scoredPlayers = data.players.map(p => {
-             // If this player was the questioner, keep them as is.
-             // FIX: Use null instead of undefined for Firestore compatibility
              if (data.mode === GameMode.CUSTOM && p.id === data.activeQuestionerId) {
                  return { ...p, diff: null }; 
              }
@@ -446,11 +462,9 @@ export const useGameEngine = () => {
     const data = snap.data() as GameState;
 
     if (data.mode === GameMode.PREDEFINED) {
-        // --- PREDEFINED MODE LOGIC ---
         if (data.currentQuestionIndex >= data.questions.length - 1) {
             await updateDoc(gameRef, { phase: GamePhase.GAME_OVER });
         } else {
-            // FIX: Use null instead of undefined for diff
             const resetPlayers = data.players.map(p => ({ ...p, currentGuess: null, hasGuessed: false, diff: null }));
             await updateDoc(gameRef, {
                 phase: GamePhase.GUESSING,
@@ -461,29 +475,22 @@ export const useGameEngine = () => {
             });
         }
     } else {
-        // --- CUSTOM MODE LOGIC ---
-        // Find the loser (biggest diff) from the last round to be the next questioner
-        // Exclude the previous questioner from being the loser (they didn't play)
         const playersWhoPlayed = data.players.filter(p => p.id !== data.activeQuestionerId && p.currentGuess !== null);
         
-        let nextQuestionerId = data.activeQuestionerId; // Fallback
+        let nextQuestionerId = data.activeQuestionerId;
         
         if (playersWhoPlayed.length > 0) {
-            // Sort by difference descending (Largest difference first)
             playersWhoPlayed.sort((a, b) => (b.diff || 0) - (a.diff || 0));
-            // The first one is the "loser"
             nextQuestionerId = playersWhoPlayed[0].id;
         } else {
-             // If nobody played or weird state, pick random other player
              const otherPlayers = data.players.filter(p => p.id !== data.activeQuestionerId);
              if (otherPlayers.length > 0) nextQuestionerId = otherPlayers[0].id;
         }
 
-        // FIX: Use null instead of undefined for diff
         const resetPlayers = data.players.map(p => ({ ...p, currentGuess: null, hasGuessed: false, diff: null }));
 
         await updateDoc(gameRef, {
-            phase: GamePhase.WRITING, // Go to writing phase instead of guessing
+            phase: GamePhase.WRITING,
             currentQuestionIndex: data.currentQuestionIndex + 1,
             timeRemaining: ROUND_DURATION,
             winnerId: null,
@@ -502,7 +509,8 @@ export const useGameEngine = () => {
     myPlayerId: myPlayerId.current,
     joinGame,
     startGame,
-    cancelGame,
+    endGame,
+    backToLobby,
     hardReset,
     submitGuess,
     nextRound,

@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { useGameEngine } from './services/gameEngine';
 import { GamePhase, GameMode } from './types';
-import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle, XCircle, LogIn, Trash2, PenTool, CheckCircle, BrainCircuit, Globe, Lock } from 'lucide-react';
+import { Trophy, Clock, Users, ArrowRight, Play, RefreshCw, AlertCircle, XCircle, LogIn, Trash2, PenTool, CheckCircle, BrainCircuit, Globe, Lock, Flag } from 'lucide-react';
 
 const GameScreen = () => {
-  const { state, myPlayerId, joinGame, startGame, cancelGame, hardReset, submitGuess, nextRound, restartGame, setGameMode, submitCustomQuestion } = useGameEngine();
+  const { state, myPlayerId, joinGame, startGame, endGame, backToLobby, hardReset, submitGuess, nextRound, restartGame, setGameMode, submitCustomQuestion } = useGameEngine();
   const [localGuess, setLocalGuess] = useState<string>('');
   const [playerName, setPlayerName] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
@@ -19,14 +20,14 @@ const GameScreen = () => {
   const isHost = state.players.length > 0 && state.players[0].id === myPlayerId;
   const isActiveQuestioner = state.mode === GameMode.CUSTOM && state.activeQuestionerId === myPlayerId;
 
-  // Check if player is already in the game (e.g. after refresh)
+  // Check if player is already in the game
   useEffect(() => {
     if (state.players.some(p => p.id === myPlayerId)) {
       setHasJoined(true);
     }
   }, [state.players, myPlayerId]);
 
-  // Reset local guess when question changes
+  // Reset local inputs when question changes
   useEffect(() => {
     setLocalGuess('');
     setCustomQ('');
@@ -80,7 +81,6 @@ const GameScreen = () => {
              
              <button
                onClick={handleJoin}
-               disabled={!playerName.trim()}
                className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all duration-300
                  ${playerName.trim() 
                    ? 'bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg' 
@@ -108,12 +108,9 @@ const GameScreen = () => {
   // --- VIEW: LOBBY ---
   if (state.phase === GamePhase.LOBBY) {
     const playerCount = state.players.length;
-    // Condition to start game depends on mode
     const canStart = state.mode === GameMode.PREDEFINED 
       ? playerCount >= 2 
       : playerCount >= 3;
-    
-    // Condition to enable custom mode selection
     const canSelectCustom = playerCount >= 3;
 
     return (
@@ -145,7 +142,6 @@ const GameScreen = () => {
             ))}
           </div>
 
-          {/* GAME MODE SELECTION */}
           {isHost ? (
               <div className="mb-6 bg-slate-700/50 p-4 rounded-xl">
                  <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">Spielmodus wählen</h3>
@@ -160,7 +156,6 @@ const GameScreen = () => {
                      
                      <button 
                        onClick={() => canSelectCustom && setGameMode(GameMode.CUSTOM)}
-                       disabled={!canSelectCustom}
                        className={`flex-1 py-3 px-2 rounded-lg text-sm font-bold flex flex-col items-center gap-1 transition-all relative overflow-hidden
                          ${state.mode === GameMode.CUSTOM 
                             ? 'bg-indigo-600 text-white ring-2 ring-indigo-400' 
@@ -174,11 +169,6 @@ const GameScreen = () => {
                        {!canSelectCustom && <span className="text-[10px] mt-1 font-normal opacity-80">(Min. 3 Spieler)</span>}
                      </button>
                  </div>
-                 <p className="text-xs text-slate-400 mt-3 text-center min-h-[2.5em]">
-                    {state.mode === GameMode.PREDEFINED 
-                     ? "Fragen aus dem Katalog (Airtable). Jeder gegen Jeden." 
-                     : "Reihum stellt ein Spieler eine Frage. Der Rest rät."}
-                 </p>
               </div>
           ) : (
              <div className="mb-6 text-center">
@@ -191,13 +181,13 @@ const GameScreen = () => {
 
           <button
             onClick={startGame}
-            disabled={!canStart}
             className={`
               w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all duration-300
               ${canStart 
                 ? 'bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 transform hover:-translate-y-1' 
                 : 'bg-slate-700 text-white cursor-not-allowed'}
             `}
+            disabled={!canStart}
           >
             {canStart ? <Play className="w-5 h-5 fill-current" /> : <Clock className="w-5 h-5" />}
             {canStart 
@@ -228,11 +218,11 @@ const GameScreen = () => {
     );
   }
 
-  // --- VIEW: GAME OVER ---
+  // --- VIEW: GAME OVER / LEADERBOARD ---
   if (state.phase === GamePhase.GAME_OVER) {
     const sortedPlayers = [...state.players].sort((a, b) => b.score - a.score);
     const winner = sortedPlayers[0];
-    const isWinner = winner.id === myPlayerId;
+    const isWinner = winner && winner.id === myPlayerId;
 
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-900">
@@ -240,64 +230,65 @@ const GameScreen = () => {
           <Trophy className={`w-24 h-24 mx-auto mb-4 ${isWinner ? 'text-yellow-400' : 'text-slate-600'}`} />
           <h1 className="text-4xl font-bold text-white mb-2">Spiel beendet!</h1>
           <p className="text-xl text-slate-400">
-            Gewinner: <span className="text-indigo-400 font-bold">{winner.name}</span>
+            {winner ? <>Gewinner: <span className="text-indigo-400 font-bold">{winner.name}</span></> : "Keine Ergebnisse verfügbar"}
           </p>
         </div>
 
         <div className="w-full max-w-2xl space-y-3 mb-10">
+          <h2 className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-4">Leaderboard</h2>
           {sortedPlayers.map((p, idx) => (
-            <div key={p.id} className="flex items-center justify-between p-4 bg-slate-800 rounded-xl border border-slate-700">
+            <div key={p.id} className={`flex items-center justify-between p-4 bg-slate-800 rounded-xl border ${idx === 0 ? 'border-indigo-500 shadow-lg shadow-indigo-900/20' : 'border-slate-700'}`}>
               <div className="flex items-center gap-4">
                 <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold ${idx === 0 ? 'bg-yellow-500 text-black' : 'bg-slate-700 text-slate-300'}`}>
                   {idx + 1}
                 </div>
-                <span className="font-semibold">{p.name} {p.id === myPlayerId && '(Du)'}</span>
+                <span className="font-semibold text-white">{p.name} {p.id === myPlayerId && '(Du)'}</span>
               </div>
               <span className="text-2xl font-mono font-bold text-indigo-400">{p.score} <span className="text-sm font-sans text-slate-500">Pkt</span></span>
             </div>
           ))}
         </div>
 
-        <div className="flex gap-4">
-          <button
-            onClick={restartGame}
-            className="px-8 py-3 bg-white text-slate-900 rounded-full font-bold hover:bg-slate-200 transition-colors flex items-center gap-2"
-          >
-            <RefreshCw className="w-5 h-5" />
-            Neues Spiel starten
-          </button>
-          
+        <div className="flex flex-wrap gap-4 justify-center">
           {isHost && (
-            <button 
-              onClick={cancelGame}
-              className="px-8 py-3 bg-slate-800 text-slate-300 border border-slate-700 rounded-full font-bold hover:bg-slate-700 hover:text-white transition-colors"
+            <button
+              onClick={restartGame}
+              className="px-8 py-3 bg-indigo-500 text-white rounded-full font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2 shadow-xl"
             >
-              Zurück zur Lobby
+              <RefreshCw className="w-5 h-5" />
+              Gleiche Spieler - Neue Runde
             </button>
           )}
+          
+          <button 
+            onClick={backToLobby}
+            className="px-8 py-3 bg-slate-800 text-slate-300 border border-slate-700 rounded-full font-bold hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"
+          >
+            <Users className="w-5 h-5" />
+            Zurück zur Lobby
+          </button>
         </div>
       </div>
     );
   }
 
-  // --- VIEW: WRITING PHASE (CUSTOM MODE ONLY) ---
+  // --- VIEW: WRITING PHASE ---
   if (state.phase === GamePhase.WRITING) {
      const questioner = state.players.find(p => p.id === state.activeQuestionerId);
      
-     if (isActiveQuestioner) {
-        return (
-          <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900 relative">
-             {isHost && (
-                <button 
-                  onClick={cancelGame}
-                  className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold z-10"
-                  title="Spiel für alle abbrechen und zur Lobby zurückkehren"
-                >
-                  <XCircle className="w-4 h-4" />
-                  <span className="hidden md:inline">Spiel abbrechen</span>
-                </button>
-             )}
-             
+     return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900 relative">
+           {/* Jeder kann beenden */}
+           <button 
+             onClick={endGame}
+             className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold z-10"
+             title="Spiel beenden und Leaderboard anzeigen"
+           >
+             <Flag className="w-4 h-4" />
+             <span className="hidden md:inline">Spiel beenden</span>
+           </button>
+
+           {isActiveQuestioner ? (
              <div className="w-full max-w-lg bg-slate-800 p-8 rounded-3xl border border-indigo-500 shadow-2xl animate-float">
                 <div className="flex items-center justify-center mb-6 text-indigo-400">
                    <PenTool className="w-12 h-12" />
@@ -341,51 +332,35 @@ const GameScreen = () => {
                    
                    <button 
                       onClick={handleCustomQuestionSubmit}
-                      disabled={!customQ || !customA || !customU}
                       className={`w-full py-4 mt-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all
                         ${(!customQ || !customA || !customU) ? 'bg-slate-700 text-slate-500' : 'bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg'}
                       `}
+                      disabled={!customQ || !customA || !customU}
                    >
                       <CheckCircle className="w-5 h-5" /> Frage stellen
                    </button>
                 </div>
              </div>
-          </div>
-        )
-     }
-
-     return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900 relative">
-           {isHost && (
-              <button 
-                onClick={cancelGame}
-                className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold z-10"
-                title="Spiel für alle abbrechen und zur Lobby zurückkehren"
-              >
-                <XCircle className="w-4 h-4" />
-                <span className="hidden md:inline">Spiel abbrechen</span>
-              </button>
+           ) : (
+             <div className="text-center">
+                <div className="relative inline-block">
+                    <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mb-6 mx-auto animate-pulse">
+                        <BrainCircuit className="w-10 h-10 text-indigo-400" />
+                    </div>
+                    <div className="absolute -top-2 -right-2 bg-indigo-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-bounce">
+                       Denkt nach...
+                    </div>
+                </div>
+                <h2 className="text-3xl font-bold text-white mb-2">{questioner?.name} schreibt...</h2>
+                <p className="text-slate-400">Bereite dich vor, die Frage kommt gleich!</p>
+             </div>
            )}
-
-           <div className="text-center">
-              <div className="relative inline-block">
-                  <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mb-6 mx-auto animate-pulse">
-                      <BrainCircuit className="w-10 h-10 text-indigo-400" />
-                  </div>
-                  <div className="absolute -top-2 -right-2 bg-indigo-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-bounce">
-                     Denkt nach...
-                  </div>
-              </div>
-              <h2 className="text-3xl font-bold text-white mb-2">{questioner?.name} schreibt...</h2>
-              <p className="text-slate-400">Bereite dich vor, die Frage kommt gleich!</p>
-           </div>
         </div>
      );
   }
 
-  // --- VIEW: PLAYING & REVEAL (Shared Layout) ---
+  // --- VIEW: PLAYING & REVEAL ---
   const isReveal = state.phase === GamePhase.REVEAL;
-  
   const playersWithDiff = [...state.players].map(p => ({
     ...p,
     diff: p.currentGuess !== null ? Math.abs(p.currentGuess - currentQuestion.antwort) : Infinity
@@ -393,7 +368,6 @@ const GameScreen = () => {
 
   const roundWinnerId = state.winnerId;
 
-  // Determine Timer Color
   const timerIsCritical = state.timeRemaining < 6;
   const timerColor = isReveal ? 'text-slate-500' : (timerIsCritical ? 'text-red-500' : 'text-indigo-400');
   const timerBorder = isReveal ? 'border-slate-700' : (timerIsCritical ? 'border-red-500/50 animate-pulse' : 'border-indigo-500/50');
@@ -402,19 +376,16 @@ const GameScreen = () => {
   return (
     <div className="min-h-screen flex flex-col items-center p-4 md:p-8 bg-slate-900 relative">
       
-      {/* HOST CONTROLS */}
-      {isHost && (
-        <button 
-          onClick={cancelGame}
-          className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold z-10"
-          title="Spiel für alle abbrechen und zur Lobby zurückkehren"
-        >
-          <XCircle className="w-4 h-4" />
-          <span className="hidden md:inline">Spiel abbrechen</span>
-        </button>
-      )}
+      {/* JEDER KANN BEENDEN */}
+      <button 
+        onClick={endGame}
+        className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 hover:text-red-300 transition-colors text-sm font-semibold z-10"
+        title="Spiel beenden und Leaderboard anzeigen"
+      >
+        <Flag className="w-4 h-4" />
+        <span className="hidden md:inline">Spiel beenden</span>
+      </button>
 
-      {/* Header Info */}
       <div className="w-full max-w-4xl flex justify-center mt-8 md:mt-4 mb-6">
         <div className="bg-slate-800/80 px-6 py-2 rounded-full border border-slate-700 backdrop-blur-sm">
           <h2 className="text-slate-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
@@ -426,7 +397,6 @@ const GameScreen = () => {
         </div>
       </div>
 
-      {/* BIG TIMER DISPLAY (DESKTOP ONLY) */}
       <div className={`
         relative mb-8 rounded-full w-32 h-32 hidden md:flex items-center justify-center border-4
         ${timerBg} ${timerBorder} transition-all duration-300
@@ -453,9 +423,7 @@ const GameScreen = () => {
           )}
       </div>
 
-      {/* Main Game Card */}
       <div className="w-full max-w-3xl bg-slate-800 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden mb-8 relative">
-        {/* Question Area */}
         <div className="p-8 md:p-12 text-center bg-gradient-to-b from-slate-800 to-slate-800/50">
            {state.mode === GameMode.CUSTOM && (
              <div className="text-xs text-indigo-400 font-bold uppercase mb-2 tracking-widest">
@@ -467,9 +435,7 @@ const GameScreen = () => {
            </h3>
         </div>
 
-        {/* Interaction / Answer Area */}
         <div className="p-8 bg-slate-900/50 border-t border-slate-700">
-          
           {isReveal ? (
              <div className="text-center fade-in">
                <p className="text-slate-400 text-sm uppercase tracking-widest mb-2">Die richtige Antwort ist</p>
@@ -485,9 +451,7 @@ const GameScreen = () => {
              </div>
           ) : (
             <div className="flex flex-col items-center gap-4 max-w-sm mx-auto">
-              
               <div className="flex items-center gap-3 w-full">
-                {/* MOBILE TIMER (VISIBLE ONLY ON MOBILE) */}
                 <div className={`
                   md:hidden flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center border-4 shadow-lg
                   ${timerBg} ${timerBorder}
@@ -497,7 +461,6 @@ const GameScreen = () => {
                    </span>
                 </div>
 
-                {/* Input Field Wrapper */}
                 <div className="relative flex-1">
                   <input
                     type="number"
@@ -514,20 +477,15 @@ const GameScreen = () => {
                 </div>
               </div>
               
-              {/* Mobile Unit Display (Below input if screen is very small) */}
-              <div className="sm:hidden text-slate-400 font-medium text-sm -mt-2">
-                {currentQuestion?.einheit}
-              </div>
-              
               <button
                 onClick={handleGuessSubmit}
-                disabled={!localGuess || me?.hasGuessed}
                 className={`
                    w-full py-3 rounded-lg font-bold text-lg transition-all
                    ${me?.hasGuessed 
                      ? 'bg-green-600 text-white cursor-default shadow-lg shadow-green-900/20' 
                      : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20'}
                 `}
+                disabled={!localGuess || me?.hasGuessed}
               >
                 {me?.hasGuessed ? 'Warten auf andere...' : 'Absenden'}
               </button>
@@ -536,20 +494,13 @@ const GameScreen = () => {
         </div>
       </div>
 
-      {/* Results List (Only visible during reveal) */}
       {isReveal && (
         <div className="w-full max-w-3xl mb-24 fade-in">
           <h4 className="text-slate-400 mb-4 font-bold uppercase text-sm">Schätzungen dieser Runde</h4>
           <div className="space-y-2">
             {playersWithDiff.map((p) => {
-               // Skip rendering the questioner in the guess list for Custom Mode
                if (state.mode === GameMode.CUSTOM && p.id === state.activeQuestionerId) return null;
-
                const isRoundWinner = roundWinnerId === p.id || (roundWinnerId === 'TIE' && p.diff === playersWithDiff.filter(pl => pl.id !== state.activeQuestionerId)[0].diff);
-               
-               // Determine loser for next round indicator (only relevant in custom mode)
-               // Sort again to be safe to find the actual last place visually
-               // But usually the list is already sorted by diff asc. Last one is loser.
                const isLoser = state.mode === GameMode.CUSTOM && p.diff === playersWithDiff[playersWithDiff.length-1].diff;
 
                return (
@@ -594,17 +545,15 @@ const GameScreen = () => {
         </div>
       )}
 
-      {/* Player Status Bar */}
       {!isReveal && (
          <div className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur border-t border-slate-800 p-4 z-20">
             <div className="max-w-4xl mx-auto flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                {state.players.map(p => {
-                 // In Custom mode, visually distinguish the questioner
                  if (state.mode === GameMode.CUSTOM && p.id === state.activeQuestionerId) {
                     return (
                         <div key={p.id} className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-green-900/30 border border-green-500/50 rounded-full">
                            <PenTool className="w-3 h-3 text-green-400" />
-                           <span className="font-bold text-sm text-green-100">{p.name} (Stellt Frage)</span>
+                           <span className="font-bold text-sm text-green-100">{p.name} (Frage)</span>
                         </div>
                     );
                  }
